@@ -54,7 +54,6 @@
 # =========================================================
 #  Used for approving minor documentation-only changes that don't require engineering review.
 #
-# aikidave
 # gkalpak
 # josmar-crwdstffng
 # ileil
@@ -174,8 +173,8 @@ groups:
       reviewed_for: ignored # All reviews apply to this group whether noted via Reviewed-for or not
     reviewers:
       users:
-        - aikidave # Dave Shevitz
         - alan-agius4 # Alan Agius
+        - aleksanderbodurri # Aleksander Bodurri
         - alxhub # Alex Rickabaugh
         - AndrewKushnir # Andrew Kushnir
         - andrewseguin # Andrew Seguin
@@ -956,7 +955,6 @@ groups:
           ])
     reviewers:
       users:
-        - aikidave
         - AndrewKushnir
         - jessicajaniuk
 
@@ -979,7 +977,6 @@ groups:
           ])
     reviewers:
       users:
-        - aikidave
         - MarkTechson
         - mgechev
         - twerske
@@ -1205,6 +1202,26 @@ groups:
         - josephperrott
 
   # =========================================================
+  #  Angular DevTools
+  # =========================================================
+  devtools:
+    <<: *defaults
+    conditions:
+      - *can-be-global-approved
+      - *can-be-global-docs-approved
+      - >
+        contains_any_globs(files, [
+          'devtools/**',
+          ])
+    reviewers:
+      users:
+        - aleksanderbodurri
+        - devversion
+        - josephperrott
+        - mgechev
+        - twerske
+
+  # =========================================================
   #  Dev-infra
   # =========================================================
   dev-infra:
@@ -1271,6 +1288,7 @@ groups:
           'docs/NAMING.md',
           'aio/content/guide/angular-package-format.md',
           'aio/content/errors/*.md',
+          'aio/content/extended-diagnostics/*.md',
           'aio/content/guide/glossary.md',
           'aio/content/guide/styleguide.md',
           'aio/content/examples/errors/**',

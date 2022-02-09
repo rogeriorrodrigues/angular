@@ -51,7 +51,7 @@ interface LazyCompilationState {
   refEmitter: ReferenceEmitter;
   templateTypeChecker: TemplateTypeChecker;
   resourceRegistry: ResourceRegistry;
-  extendedTemplateChecker: ExtendedTemplateChecker;
+  extendedTemplateChecker: ExtendedTemplateChecker|null;
 }
 
 
@@ -316,12 +316,6 @@ export class NgCompiler {
       readonly usePoisonedData: boolean,
       private livePerfRecorder: ActivePerfRecorder,
   ) {
-    if (this.options._extendedTemplateDiagnostics === true &&
-        this.options.strictTemplates === false) {
-      throw new Error(
-          'The \'_extendedTemplateDiagnostics\' option requires \'strictTemplates\' to also be enabled.');
-    }
-
     this.constructionDiagnostics.push(
         ...this.adapter.constructionDiagnostics, ...verifyCompatibleTypeCheckOptions(this.options));
 
@@ -430,7 +424,7 @@ export class NgCompiler {
   getDiagnostics(): ts.Diagnostic[] {
     const diagnostics: ts.Diagnostic[] = [];
     diagnostics.push(...this.getNonTemplateDiagnostics(), ...this.getTemplateDiagnostics());
-    if (this.options._extendedTemplateDiagnostics) {
+    if (this.options.strictTemplates) {
       diagnostics.push(...this.getExtendedTemplateDiagnostics());
     }
     return this.addMessageTextDetails(diagnostics);
@@ -446,7 +440,7 @@ export class NgCompiler {
     diagnostics.push(
         ...this.getNonTemplateDiagnostics().filter(diag => diag.file === file),
         ...this.getTemplateDiagnosticsForFile(file, optimizeFor));
-    if (this.options._extendedTemplateDiagnostics) {
+    if (this.options.strictTemplates) {
       diagnostics.push(...this.getExtendedTemplateDiagnostics(file));
     }
     return this.addMessageTextDetails(diagnostics);
@@ -460,8 +454,9 @@ export class NgCompiler {
     const ttc = compilation.templateTypeChecker;
     const diagnostics: ts.Diagnostic[] = [];
     diagnostics.push(...ttc.getDiagnosticsForComponent(component));
-    if (this.options._extendedTemplateDiagnostics) {
-      const extendedTemplateChecker = compilation.extendedTemplateChecker;
+
+    const extendedTemplateChecker = compilation.extendedTemplateChecker;
+    if (this.options.strictTemplates && extendedTemplateChecker) {
       diagnostics.push(...extendedTemplateChecker.getDiagnosticsForComponent(component));
     }
     return this.addMessageTextDetails(diagnostics);
@@ -886,6 +881,10 @@ export class NgCompiler {
     const diagnostics: ts.Diagnostic[] = [];
     const compilation = this.ensureAnalyzed();
     const extendedTemplateChecker = compilation.extendedTemplateChecker;
+    if (!extendedTemplateChecker) {
+      return [];
+    }
+
     if (sf !== undefined) {
       return compilation.traitCompiler.extendedTemplateCheck(sf, extendedTemplateChecker);
     }
@@ -964,6 +963,7 @@ export class NgCompiler {
     const localMetaRegistry = new LocalMetadataRegistry();
     const localMetaReader: MetadataReader = localMetaRegistry;
     const depScopeReader = new MetadataDtsModuleScopeResolver(dtsReader, aliasingHost);
+    const metaReader = new CompoundMetadataReader([localMetaReader, dtsReader]);
     const scopeRegistry =
         new LocalModuleScopeRegistry(localMetaReader, depScopeReader, refEmitter, aliasingHost);
     const scopeReader: ComponentScopeReader = scopeRegistry;
@@ -971,7 +971,6 @@ export class NgCompiler {
     const metaRegistry = new CompoundMetadataRegistry([localMetaRegistry, scopeRegistry]);
     const injectableRegistry = new InjectableClassRegistry(reflector);
 
-    const metaReader = new CompoundMetadataReader([localMetaReader, dtsReader]);
     const typeCheckScopeRegistry = new TypeCheckScopeRegistry(scopeReader, metaReader);
 
 
@@ -1010,15 +1009,15 @@ export class NgCompiler {
     // Set up the IvyCompilation, which manages state for the Ivy transformer.
     const handlers: DecoratorHandler<unknown, unknown, SemanticSymbol|null, unknown>[] = [
       new ComponentDecoratorHandler(
-          reflector, evaluator, metaRegistry, metaReader, scopeReader, scopeRegistry,
-          typeCheckScopeRegistry, resourceRegistry, isCore, this.resourceManager,
+          reflector, evaluator, metaRegistry, metaReader, scopeReader, depScopeReader,
+          scopeRegistry, typeCheckScopeRegistry, resourceRegistry, isCore, this.resourceManager,
           this.adapter.rootDirs, this.options.preserveWhitespaces || false,
           this.options.i18nUseExternalIds !== false,
           this.options.enableI18nLegacyMessageIdFormat !== false, this.usePoisonedData,
-          this.options.i18nNormalizeLineEndingsInICUs, this.moduleResolver, this.cycleAnalyzer,
-          cycleHandlingStrategy, refEmitter, this.incrementalCompilation.depGraph,
-          injectableRegistry, semanticDepGraphUpdater, this.closureCompilerEnabled,
-          this.delegatingPerfRecorder),
+          this.options.i18nNormalizeLineEndingsInICUs === true, this.moduleResolver,
+          this.cycleAnalyzer, cycleHandlingStrategy, refEmitter,
+          this.incrementalCompilation.depGraph, injectableRegistry, semanticDepGraphUpdater,
+          this.closureCompilerEnabled, this.delegatingPerfRecorder),
 
       // TODO(alxhub): understand why the cast here is necessary (something to do with `null`
       // not being assignable to `unknown` when wrapped in `Readonly`).
@@ -1062,8 +1061,11 @@ export class NgCompiler {
         reflector, this.adapter, this.incrementalCompilation, scopeRegistry, typeCheckScopeRegistry,
         this.delegatingPerfRecorder);
 
-    const extendedTemplateChecker = new ExtendedTemplateCheckerImpl(
-        templateTypeChecker, checker, ALL_DIAGNOSTIC_FACTORIES, this.options);
+    // Only construct the extended template checker if the configuration is valid and usable.
+    const extendedTemplateChecker = this.constructionDiagnostics.length === 0 ?
+        new ExtendedTemplateCheckerImpl(
+            templateTypeChecker, checker, ALL_DIAGNOSTIC_FACTORIES, this.options) :
+        null;
 
     return {
       isCore,

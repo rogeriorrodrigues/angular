@@ -552,21 +552,8 @@ describe('parser', () => {
         expectBindingError('"Foo"|#privateIdentifier"', 'identifier or keyword');
       });
 
-      it('should parse quoted expressions', () => {
-        checkBinding('a:b', 'a:b');
-      });
-
       it('should not crash when prefix part is not tokenizable', () => {
         checkBinding('"a:b"', '"a:b"');
-      });
-
-      it('should ignore whitespace around quote prefix', () => {
-        checkBinding(' a :b', 'a:b');
-      });
-
-      it('should refuse prefixes that are not single identifiers', () => {
-        expectBindingError('a + b:c', '');
-        expectBindingError('1:c', '');
       });
     });
 
@@ -607,10 +594,6 @@ describe('parser', () => {
 
     it('should retain // in string literals', () => {
       checkBinding(`"http://www.google.com"`, `"http://www.google.com"`);
-    });
-
-    it('should retain // in : microsyntax', () => {
-      checkBinding('one:a//b', 'one:a//b');
     });
   });
 
@@ -1180,7 +1163,7 @@ function createParser() {
 }
 
 function parseAction(text: string, location: any = null, offset: number = 0): ASTWithSource {
-  return createParser().parseAction(text, location, offset);
+  return createParser().parseAction(text, /* isAssignmentEvent */ false, location, offset);
 }
 
 function parseBinding(text: string, location: any = null, offset: number = 0): ASTWithSource {

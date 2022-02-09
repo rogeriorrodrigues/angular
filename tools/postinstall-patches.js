@@ -68,7 +68,8 @@ const captureNgDevPatches = (files, patches) =>
     patches.forEach(p => _captureNgDevPatch(p[0], p[1], files));
 const _captureNgDevPatch = (search, replace, files) => {
   for (const fileName of files) {
-    const currentPatches = ngDevPatches.get(fileName) ?? [];
+    const patches = ngDevPatches.get(fileName);
+    const currentPatches = (patches !== null && patches !== undefined) ? patches : [];
     ngDevPatches.set(fileName, [...currentPatches, [search, replace]]);
   }
 };
@@ -81,7 +82,7 @@ captureNgDevPatches(
     [
       ['@npm//@angular/platform-browser', '@angular//packages/platform-browser'],
       ['@npm//@angular/core', '@angular//packages/core'],
-      ['@npm//:node_modules/zone.js/bundles/zone.umd.js', '//packages/zone.js/bundles:zone.umd.js'],
+      ['@npm//zone.js', '//packages/zone.js/dist:zone'],
       [
         'load\\("@npm//@angular/bazel:index.bzl", "ng_module"\\)',
         'load\("@angular//tools:defaults.bzl", "ng_module"\)'
@@ -111,6 +112,23 @@ captureNgDevPatches(
       [
         `from '@angular/compiler-cli/private/tooling'`,
         `from '@angular/compiler-cli/private/tooling.js'`
+      ],
+    ]);
+
+// Patches for angular linker
+captureNgDevPatches(
+    [
+      'node_modules/@angular/dev-infra-private/shared-scripts/angular-linker/BUILD.bazel',
+      'node_modules/@angular/dev-infra-private/shared-scripts/angular-linker/esbuild-plugin.mjs',
+    ],
+    [
+      [
+        '"@npm//@angular/compiler-cli"',
+        '"@angular//packages/compiler-cli", "@angular//packages/compiler-cli/linker/babel"'
+      ],
+      [
+        `from '@angular/compiler-cli/linker/babel'`,
+        `from '@angular/compiler-cli/linker/babel/index.js'`
       ],
     ]);
 
